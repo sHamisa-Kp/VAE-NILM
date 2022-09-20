@@ -345,7 +345,7 @@ def separate():
 #                     temp_appliance.append(data_[i-start])
 #                     t_a.append(data_[i-start])
 #             sum_ = np.sum(t_a)
-#             if sum_ < positive_negative_threshold:
+#             if sum_ < positive_negative_thres hold:
 #                 r = random.random()
 #                 if r > negative_ratio:
 #                     continue

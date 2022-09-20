@@ -1,20 +1,22 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
-import pandas as pd
+# from mpl_toolkits.mplot3d import Axes3D
+# import matplotlib.pyplot as plt
+# import pandas as pd
 import os
 import datetime
 import argparse
 from VAE_functions import *
 from NILM_functions import *
 import pickle
-from scipy.stats import norm
-from keras.utils.vis_utils import plot_model
+# from scipy.stats import norm
+# from keras.utils.vis_utils import plot_model
 from dtw import *
 import logging
 import json
+
+tf.compat.v1.disable_eager_execution()
 
 ADD_VAL_SET = False
 

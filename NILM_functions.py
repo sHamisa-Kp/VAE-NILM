@@ -174,7 +174,7 @@ def load_data(model, appliance, dataset, width, strides, test_from=0, set_type="
 #                 y_ = []
 
 #                 for t in range(0, x.shape[0]-width, stride):
-#                     x_.append(x[t:t+width])
+#                     x_.append(x[t:t+width])`
 #                     y_.append(y[t:t+width])
 
 #                 x_ = np.array(x_).reshape([-1, width, 1])
@@ -363,7 +363,11 @@ def create_model(model, config, width, optimizer):
             ###############################################################################
             # normalize log variance to std dev
             z_sigma = tf.keras.layers.Lambda(lambda t: K.exp(.5*t), name="z_sigma")(z_log_var)
-            eps = tf.keras.Input(tensor=K.random_normal(shape=(K.shape(x)[0], latent_dim)), name="eps")
+            def get_eps(x, latent_dim):
+                eps = K.random_normal(shape=(K.shape(x)[0], latent_dim))
+                return eps
+
+            eps = tf.keras.layers.Lambda(get_eps, arguments={"latent_dim": latent_dim})(x)
 
             z_eps = tf.keras.layers.Multiply(name="z_eps")([z_sigma, eps])
             z = tf.keras.layers.Add(name="z")([z_mu, z_eps])
@@ -626,7 +630,7 @@ def create_model(model, config, width, optimizer):
 
             x_pred = tf.keras.layers.Conv1D(1, 3, padding="same", activation="relu", name="x_pred")(dconc17)
 
-            model = tf.keras.Model(inputs=[x, eps], outputs=x_pred)
+            model = tf.keras.Model(inputs=[x], outputs=[x_pred])
             model.summary()
             
         elif config == 3:
