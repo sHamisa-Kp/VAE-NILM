@@ -18,7 +18,7 @@ import json
 
 tf.compat.v1.disable_eager_execution()
 
-ADD_VAL_SET = False
+ADD_VAL_SET = True
 
 logging.getLogger('tensorflow').disabled = True
 
@@ -54,7 +54,7 @@ for r in range(1, nilm["run"]+1):
     # Load dataset
     ###############################################################################
     x_train, y_train = load_data(nilm["model"], nilm["appliance"], nilm["dataset"], nilm["preprocessing"]["width"], nilm["preprocessing"]["strides"], set_type="train")
-    
+    x_test, y_test = load_data(nilm["model"], nilm["appliance"], nilm["dataset"], nilm["preprocessing"]["width"], nilm["preprocessing"]["strides"], set_type="test")
     main_mean = nilm["preprocessing"]["main_mean"]
     main_std = nilm["preprocessing"]["main_std"]
 
@@ -182,8 +182,10 @@ for r in range(1, nilm["run"]+1):
             history = model.fit((x_train_s2p-main_mean)/main_std, (y_train_s2p-app_mean)/app_std, validation_split=nilm["training"]["validation_split"], shuffle=True, 
                                 epochs=epochs, batch_size=batch_size, callbacks=list_callbacks, verbose=1, initial_epoch=0)
 
-        elif nilm["model"] == "VAE":    
-            history = model.fit((x_train-main_mean)/main_std, (y_train-app_mean)/app_std, validation_split=nilm["training"]["validation_split"], shuffle=True, 
+        elif nilm["model"] == "VAE":
+            x_train = (x_train-main_mean)/main_std
+            y_train = (y_train-app_mean)/app_std
+            history = model.fit(x_train, y_train, validation_split=nilm["training"]["validation_split"], shuffle=True,
                                 epochs=epochs, batch_size=batch_size, callbacks=list_callbacks, verbose=1, initial_epoch=0)
             
         elif nilm["model"] == "S2S":    
