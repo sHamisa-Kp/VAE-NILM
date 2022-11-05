@@ -1,32 +1,91 @@
-import numpy as np
-import tensorflow as tf
+from scipy import linalg
 from VAE_functions import *
 
+import numpy as np
+import tensorflow as tf
 
-def scaling_factor(clients_trn_data, client_name):
-    client_names = list(clients_trn_data.keys())
-    temp = [clients_trn_data[cn][0].shape[0] for cn in client_names]
-    global_count = sum(temp)
-    local_count = clients_trn_data[client_name][0].shape()[0]
-    scale_factor = local_count / global_count
-    print(scale_factor)
-
-    return scale_factor
+import copy
+import torch
+import torch.nn.functional as F
 
 
-def scale_model_weights(weight, scale_factor):
-    w_f = []
-    for i in range(len(weight)):
-        w_f.append(scale_factor * weight[i])
-    return w_f
+def aggregate_att(w_clients, w_server, stepsize, metric, dp):
+    """
+    Attentive aggregation
+    :param w_clients: list of client model parameters
+    :param w_server: server model parameters
+    :param stepsize: step size for aggregation
+    :param metric: similarity
+    :param dp: magnitude of randomization
+    :return: updated server model parameters
+    """
+    w_next = copy.deepcopy(w_server)
+    att, _att, att_mat = {}, {}, {}
+    for k in w_server.keys():
+        w_next[k] = torch.zeros_like(w_server[k]).cpu()
+        att[k] = torch.zeros(len(w_clients)).cpu()
+        # _att[k] = torch.zeros(len(w_clients)).cpu()
+    for k in w_next.keys():
+        for i in range(0, len(w_clients)):
+            diff = w_server[k] - w_clients[i][k]
+            # print(f'diff.shape before: {diff.shape}')
+            # att[k][i] = torch.from_numpy(np.array(linalg.norm(diff, ord=None)))
+            if metric == 2:
+                diff = torch.reshape(diff, (-1, diff.shape[-1]))
+                att[k][i] = torch.from_numpy(np.array(linalg.norm(diff, ord=2)))
+            else:
+                att[k][i] = torch.from_numpy(np.array(linalg.norm(diff, ord=None)))
+            # print(f'att: {att[k][i]}, _att: {_att[k][i]}\n')
+
+    for k in w_next.keys():
+        att[k] = F.softmax(att[k], dim=0)
+    for k in w_next.keys():
+        att_weight = torch.zeros_like(w_server[k])
+        for i in range(0, len(w_clients)):
+            att_weight += torch.mul(w_server[k] - w_clients[i][k], att[k][i])
+        w_next[k] = w_server[k] - torch.mul(att_weight, stepsize) + torch.mul(torch.randn(w_server[k].shape), dp)
+    return w_next
 
 
-def sum_scaled_weights(scaled_weights):
-    avg = []
-    for w in zip(*scaled_weights):
-        l_mean = tf.math.reduce_sum(w, axis=0)
-        avg.append(l_mean)
-    return avg
+def average_weights(w, dp):
+    """
+    Federated averaging
+    :param w: list of client model parameters
+    :param dp: magnitude of randomization
+    :return: updated server model parameters
+    """
+    w_avg = copy.deepcopy(w[0])
+    for k in w_avg.keys():
+        for i in range(1, len(w)):
+            w_avg[k] = w_avg[k] + w[i][k]
+        w_avg[k] = torch.div(w_avg[k], len(w)) + torch.mul(torch.randn(w_avg[k].shape), dp)
+    return w_avg
+
+
+# def scaling_factor(clients_trn_data, client_name):
+#     client_names = list(clients_trn_data.keys())
+#     temp = [clients_trn_data[cn][0].shape[0] for cn in client_names]
+#     global_count = sum(temp)
+#     local_count = clients_trn_data[client_name][0].shape()[0]
+#     scale_factor = local_count / global_count
+#     print(scale_factor)
+#
+#     return scale_factor
+#
+#
+# def scale_model_weights(weight, scale_factor):
+#     w_f = []
+#     for i in range(len(weight)):
+#         w_f.append(scale_factor * weight[i])
+#     return w_f
+#
+#
+# def sum_scaled_weights(scaled_weights):
+#     avg = []
+#     for w in zip(*scaled_weights):
+#         l_mean = tf.math.reduce_sum(w, axis=0)
+#         avg.append(l_mean)
+#     return avg
 
 
 def load_data(model, appliance, dataset, width, strides, batch_s, fl_mode=False, test_from=0, set_type="both"):
@@ -66,17 +125,9 @@ def load_data(model, appliance, dataset, width, strides, batch_s, fl_mode=False,
         else:
             return x[ind[:max_data]], y[ind[:max_data]]
 
-    # def create_clients(data, clients_num):
-    #     client_names = ['{}{}'.format('client', i + 1) for i in range(clients_num)]
-    #
-    #     partitions_dict = {client_names[i]: data[i] for i in range(clients_num)}
-    #
-    #     return partitions_dict
-
     def create_dataset(appliance, dataset, width, strides, batch_s, set_type, test_from=0):
         x_tot = np.array([]).reshape(0, width, 1)
         y_tot = np.array([]).reshape(0, width, 1)
-        print(f"set_type: {set_type}")
         x_train_temp = []
         y_train_temp = []
 
@@ -88,15 +139,12 @@ def load_data(model, appliance, dataset, width, strides, batch_s, fl_mode=False,
                 x_r, y_r = select_ratio(x_, y_, r, set_type, test_from=test_from)
             else:
                 x_r, y_r = select_ratio(x_, y_, r, set_type)  # Select the proportion needed
-                print("shape of x_r: {}, shape of y_r: {}".format(x_r.shape, y_r.shape))
-                print(f"x_r :{type(x_r)}, y_r:{type(y_r)}")
+                # print("shape of x_r: {}, shape of y_r: {}".format(x_r.shape, y_r.shape))
                 x_train_temp.append(x_r)
                 y_train_temp.append(y_r)
-                # zipped = list(zip(x_r, y_r))
-                # data_t.append(zipped)
 
-            print("Total house {} : x:{}, y:{}".format(h, x_.shape, y_.shape))
-            print("Ratio house {} : {}, x:{}, y:{}".format(h, r, x_r.shape, y_r.shape))
+            print("Total house {}: x:{}, y:{}".format(h, x_.shape, y_.shape))
+            print("Ratio house {}: {}, x:{}, y:{}".format(h, r, x_r.shape, y_r.shape))
 
             x_tot = np.vstack([x_tot, x_r])
             y_tot = np.vstack([y_tot, y_r])
@@ -106,9 +154,8 @@ def load_data(model, appliance, dataset, width, strides, batch_s, fl_mode=False,
         if set_type == "train" and fl_mode:
             clients_num = len(dataset[set_type]["house"])
             client_names = ['{}{}'.format('client', x) for x in dataset[set_type]["house"]]
-            print(client_names)
+            print(f"Client names: {client_names}")
             client_b = {c: [x, y] for c, x, y in zip(client_names, x_train_temp, y_train_temp)}
-            print(type(client_b))
             return client_b
         else:
             return x_tot, y_tot
@@ -140,7 +187,6 @@ def load_data(model, appliance, dataset, width, strides, batch_s, fl_mode=False,
                 x_train, y_train = create_dataset(appliance, dataset, width, strides, batch_s, "train")
             else:
                 client_dict = create_dataset(appliance, dataset, width, strides, batch_s, "train")
-                print("I'm here")
 
         if (set_type == "test") or (set_type == "both"):
             print("Create test dataset")

@@ -1,24 +1,27 @@
-import numpy as np
-import tensorflow as tf
-import tensorflow.keras.backend as K
-# from mpl_toolkits.mplot3d import Axes3D
-# import matplotlib.pyplot as plt
-# import pandas as pd
+from typing import List
+
 import os
 import datetime
 import argparse
 import random
-from VAE_functions import *
-from NILM_functions import *
-import pickle
-# from scipy.stats import norm
-# from keras.utils.vis_utils import plot_model
-from dtw import *
 import logging
 import json
+import copy
+import torch
+
+import torch.nn.functional as F
+import tensorflow as tf
+import tensorflow.keras.backend as K
+
+from scipy import linalg
+
+from dtw import *
+from VAE_functions import *
+from NILM_functions import *
 
 tf.compat.v1.disable_eager_execution()
 
+# ?
 ADD_VAL_SET = False
 
 logging.getLogger('tensorflow').disabled = True
@@ -27,34 +30,44 @@ logging.getLogger('tensorflow').disabled = True
 # Config
 ###############################################################################
 parser = argparse.ArgumentParser()
-
 parser.add_argument("--gpu", default=0, type=int, help="Appliance to learn")
 parser.add_argument("--config", default="", type=str, help="Path to the config file")
 parser.add_argument('--fl', default=False, action='store_true')
+parser.add_argument('--agg', default='att', type=str)
 parser.add_argument('--global_epoch', default=50, type=int)
 parser.add_argument('--local_epoch', default=2, type=int)
+parser.add_argument('--step_s', default=1.2, type=float)
+parser.add_argument('--metric', default=2, type=int)
+parser.add_argument('--dp', default=0.001, type=float)
 a = parser.parse_args()
 
 # Select GPU
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = str(a.gpu)
 
-print("###############################################################################")
-print("NILM DISAGREGATOR")
-print("GPU : {}".format(a.gpu))
-print("CONFIG : {}".format(a.config))
-print("FL mode: {}".format(a.fl))
-print("###############################################################################")
+# Random seed
+np.random.seed(123)
 
 # FL parameters
 fl_mode = a.fl
+agg = a.agg
 global_epochs = a.global_epoch
 local_epochs = a.local_epoch
+step_s = a.step_s
+metric = a.metric
+dp = a.dp
+
+print("###############################################################################")
+print("NILM DISAGGREGATION")
+print("GPU: {}".format(a.gpu))
+print("Config: {}".format(a.config))
+print("FL mode: {}".format(a.fl))
+if fl_mode:
+    print("Aggregation mode: {}".format(a.agg))
+print("###############################################################################")
 
 with open(a.config) as data_file:
     nilm = json.load(data_file)
-
-np.random.seed(123)
 
 name = "NILM_Disag_{}".format(nilm["appliance"])
 time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -66,7 +79,6 @@ for r in range(1, nilm["run"] + 1):
     if fl_mode:
         clients = load_data(nilm["model"], nilm["appliance"], nilm["dataset"], nilm["preprocessing"]["width"],
                             nilm["preprocessing"]["strides"], nilm["training"]["batch_size"], fl_mode, set_type="train")
-        print(type(clients))
     else:
         x_train, y_train = load_data(nilm["model"], nilm["appliance"], nilm["dataset"], nilm["preprocessing"]["width"],
                                      nilm["preprocessing"]["strides"], nilm["training"]["batch_size"], fl_mode,
@@ -89,10 +101,8 @@ for r in range(1, nilm["run"] + 1):
 
     if fl_mode:
         c_n = clients.keys()
-        print(c_n)
         temp = [clients[c][0].shape[0] for c in c_n]
         total_ins = sum(temp)
-        print(total_ins)
         STEPS_PER_EPOCH = total_ins // batch_size
     else:
         STEPS_PER_EPOCH = x_train.shape[0] // batch_size
@@ -115,10 +125,6 @@ for r in range(1, nilm["run"] + 1):
 
 
     ###############################################################################
-    # Optimizer
-    ###############################################################################
-
-    ###############################################################################
     # Create and initialize the model
     ###############################################################################
     if not fl_mode:
@@ -137,10 +143,10 @@ for r in range(1, nilm["run"] + 1):
                                                                     beta_2=0.999))
     else:
         pass
+
     ###############################################################################
     # Callback checkpoint settings
     ###############################################################################
-
     list_callbacks = []
 
     # Create a callback that saves the model's weights
@@ -193,6 +199,7 @@ for r in range(1, nilm["run"] + 1):
                 history_cb = AdditionalValidationSets(
                     [((x_test - main_mean) / main_std, (y_test - app_mean) / app_std, 'House_2')], verbose=1)
 
+        # ?
         elif nilm["dataset"]["name"] == "house_2":
             history_cb = AdditionalValidationSets([(x_test, y_test, 'House_2')], verbose=1)
         elif nilm["dataset"]["name"] == "refit":
@@ -277,7 +284,8 @@ for r in range(1, nilm["run"] + 1):
                                     optimizer=get_optimizer(nilm["training"]["optimizer"]))
         for epoch in range(global_epochs):
             global_w = global_model.get_weights()
-            scaled_local_weight = []
+            global_w_dict = {f'layer_{i}': torch.from_numpy(elem) for i, elem in enumerate(global_w)}
+            local_weights_dict: List[dict] = []
             random.shuffle(client_names)
 
             for client in client_names:
@@ -288,11 +296,14 @@ for r in range(1, nilm["run"] + 1):
                                 validation_split=nilm["training"]["validation_split"], shuffle=True,
                                 epochs=local_epochs, batch_size=batch_size, callbacks=list_callbacks, verbose=1,
                                 initial_epoch=0)
-                scaling_factor = scaling_factor(clients, client)
-                scaled_weights = scale_model_weights(local_model.get_weights(), scaling_factor)
-                scaled_local_weight.append(scaled_weights)
-
+                local_weights_dict.append(
+                    {f'layer_{i}': torch.from_numpy(elem) for i, elem in enumerate(local_model.get_weights())})
                 K.clear_session()
 
-            avg_w = sum_scaled_weights(scaled_local_weight)
-            global_model.set_weights(avg_w)
+                if agg == "att":
+                    global_w_tmp = aggregate_att(local_weights_dict, global_w_dict, step_s, metric, dp)
+                else:
+                    global_w_tmp = average_weights(local_weights_dict, dp)
+
+            global_w = [i.numpy() for i in global_w_tmp.values()]
+            global_model.set_weights(global_w)
