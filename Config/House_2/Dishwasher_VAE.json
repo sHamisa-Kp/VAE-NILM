@@ -2,7 +2,7 @@
     "model" : "VAE",
     "config" : 0,
     "appliance" : "Dishwasher",
-    "run" : 10,
+    "run" : 1,
     "training" : {
         "batch_size" : 16,
         "epoch" : 100,

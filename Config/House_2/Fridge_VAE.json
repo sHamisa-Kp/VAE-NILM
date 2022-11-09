@@ -2,7 +2,7 @@
     "model" : "VAE",
     "config" : 0,
     "appliance" : "Fridge",
-    "run" : 10,
+    "run" : 1,
     "training" : {
         "batch_size" : 32,
         "epoch" : 100,

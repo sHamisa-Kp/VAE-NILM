@@ -2,7 +2,7 @@
     "model" : "VAE",
     "config" : 0,
     "appliance" : "Kettle",
-    "run" : 10,
+    "run" : 1,
     "training" : {
         "batch_size" : 150,
         "epoch" : 100,
