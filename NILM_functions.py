@@ -1087,7 +1087,8 @@ def MAE_metric(x_pred, x_test, c_test=0, app_ratio=0, disaggregation=False, only
     else:
         MAE = np.mean(np.abs((x_test - x_pred)), axis=1).reshape([-1, 1])
 
-        M_ratio = (np.tile(app_ratio, [c_test.shape[0], 1]) * c_test)
+        # todo
+        M_ratio = ( np.tile(app_ratio, [c_test.shape[0], 1]) * c_test)
         MAE = np.tile(MAE, [1, c_test.shape[1]]) * M_ratio
 
         MAE_tot = MAE.sum(axis=1).mean()
@@ -1096,6 +1097,11 @@ def MAE_metric(x_pred, x_test, c_test=0, app_ratio=0, disaggregation=False, only
     print(MAE_tot)
 
     return MAE_tot, MAE_app, MAE
+
+def relative_error_total_energy(pred, ground):
+    E_pred = np.sum(pred)
+    E_ground = np.sum(ground)
+    return np.abs(E_pred - E_ground) / float(max(E_pred, E_ground))
 
 
 # def SAE_metric(x_pred, x_test, window_size):

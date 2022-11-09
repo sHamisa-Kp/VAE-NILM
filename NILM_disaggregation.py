@@ -302,9 +302,9 @@ for r in range(1, nilm["run"] + 1):
         global_model = create_model(nilm["model"], nilm["config"], nilm["preprocessing"]["width"],
                                     optimizer=tf.keras.optimizers.RMSprop(0.001))
         for epoch in range(global_epochs):
-            x_total = []
-            y_total_pred = []
-            y_total_true = []
+            # x_total = []
+            # y_total_pred = []
+            # y_total_true = []
             global_w = global_model.get_weights()
             global_w_dict = {f'layer_{i}': torch.from_numpy(elem) for i, elem in enumerate(global_w)}
             local_weights_dict: List[dict] = []
@@ -361,6 +361,7 @@ for r in range(1, nilm["run"] + 1):
             RE_app = RE_metric(y_all_pred, y_all_true, thr=thr_house_2[nilm["appliance"]])
             F1_app = F1_metric(y_all_pred, y_all_true, thr=thr_house_2[nilm["appliance"]])
             SAE_app = SAE_metric(y_all_pred, y_all_true)
+            RETE = relative_error_total_energy(y_all_pred, y_all_true)
 
             print(f"MAE total: {MAE_tot} | MAE app: {MAE_app}")
             print(f"Accuracy total: {acc_P_tot} | Accuracy app: {acc_P_app}")
