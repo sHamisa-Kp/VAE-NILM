@@ -35,7 +35,7 @@ parser.add_argument("--config", default="", type=str, help="Path to the config f
 parser.add_argument('--fl', default=False, action='store_true')
 parser.add_argument('--agg', default='att', type=str)
 parser.add_argument('--global_epoch', default=50, type=int)
-parser.add_argument('--local_epoch', default=2, type=int)
+parser.add_argument('--local_epoch', default=1, type=int)
 parser.add_argument('--step_s', default=1.2, type=float)
 parser.add_argument('--metric', default=2, type=int)
 parser.add_argument('--dp', default=0.001, type=float)
@@ -56,6 +56,12 @@ local_epochs = a.local_epoch
 step_s = a.step_s
 metric = a.metric
 dp = a.dp
+
+thr_house_2 = { "Fridge": 50,
+                "WashingMachine": 20,
+                "Dishwasher": 100,
+                "Kettle": 100,
+                "Microwave": 200}
 
 print("###############################################################################")
 print("NILM DISAGGREGATION")
@@ -79,19 +85,27 @@ for r in range(1, nilm["run"] + 1):
     if fl_mode:
         clients = load_data(nilm["model"], nilm["appliance"], nilm["dataset"], nilm["preprocessing"]["width"],
                             nilm["preprocessing"]["strides"], nilm["training"]["batch_size"], fl_mode, set_type="train")
+        x_val, y_val, x_test, y_test = load_data(nilm["model"], nilm["appliance"], nilm["dataset"],
+                                                 nilm["preprocessing"]["width"],
+                                                 nilm["preprocessing"]["strides"], nilm["training"]["batch_size"],
+                                                 fl_mode,
+                                                 set_type="test")
     else:
         x_train, y_train = load_data(nilm["model"], nilm["appliance"], nilm["dataset"], nilm["preprocessing"]["width"],
                                      nilm["preprocessing"]["strides"], nilm["training"]["batch_size"], fl_mode,
                                      set_type="train")
-    x_test, y_test = load_data(nilm["model"], nilm["appliance"], nilm["dataset"], nilm["preprocessing"]["width"],
-                               nilm["preprocessing"]["strides"], nilm["training"]["batch_size"], fl_mode,
-                               set_type="test")
+        x_test, y_test = load_data(nilm["model"], nilm["appliance"], nilm["dataset"], nilm["preprocessing"]["width"],
+                                   nilm["preprocessing"]["strides"], nilm["training"]["batch_size"], fl_mode,
+                                   set_type="test")
 
     main_mean = nilm["preprocessing"]["main_mean"]
     main_std = nilm["preprocessing"]["main_std"]
 
     app_mean = nilm["preprocessing"]["app_mean"]
     app_std = nilm["preprocessing"]["app_std"]
+
+    width = nilm["preprocessing"]["width"]
+    stride = nilm["preprocessing"]["strides"]
 
     ###############################################################################
     # Training parameters
@@ -173,7 +187,8 @@ for r in range(1, nilm["run"] + 1):
                                                          verbose=0,
                                                          period=1)
 
-    list_callbacks.append(cp_callback)
+    # todo
+    # list_callbacks.append(cp_callback)
 
     if nilm["training"]["patience"] > 0:
         patience = nilm["training"]["patience"]
@@ -183,7 +198,8 @@ for r in range(1, nilm["run"] + 1):
 
         es_callback = CustomStopper(monitor='val_loss', patience=patience, start_epoch=start_epoch, mode="auto")
 
-        list_callbacks.append(es_callback)
+        # todo
+        # list_callbacks.append(es_callback)
 
     ###############################################################################
     # Normalize Test Data and History Callback
@@ -205,7 +221,8 @@ for r in range(1, nilm["run"] + 1):
         elif nilm["dataset"]["name"] == "refit":
             history_cb = AdditionalValidationSets([(x_test, y_test, 'House_2')], verbose=1)
 
-        list_callbacks.append(history_cb)
+        # todo
+        # list_callbacks.append(history_cb)
 
     ###############################################################################
     # Summary of all parameters
@@ -278,19 +295,27 @@ for r in range(1, nilm["run"] + 1):
         else:
             print("Error in dataset name!")
     else:
+        decay_steps = STEPS_PER_EPOCH * nilm["training"]["decay_steps"]
+
         client_names = random.sample(clients.keys(), len(clients.keys()))
         # initialize global model
         global_model = create_model(nilm["model"], nilm["config"], nilm["preprocessing"]["width"],
-                                    optimizer=get_optimizer(nilm["training"]["optimizer"]))
+                                    optimizer=tf.keras.optimizers.RMSprop(0.001))
         for epoch in range(global_epochs):
+            x_total = []
+            y_total_pred = []
+            y_total_true = []
             global_w = global_model.get_weights()
             global_w_dict = {f'layer_{i}': torch.from_numpy(elem) for i, elem in enumerate(global_w)}
             local_weights_dict: List[dict] = []
             random.shuffle(client_names)
 
             for client in client_names:
+                step = epoch
+                local_opt = tf.keras.optimizers.Adam(float(nilm["training"]["lr"]) / (1 + 1 * step / decay_steps))
                 local_model = create_model(nilm["model"], nilm["config"], nilm["preprocessing"]["width"],
-                                           optimizer=get_optimizer(nilm["training"]["optimizer"]))
+                                           optimizer=local_opt)
+
                 local_model.set_weights(global_w)
                 local_model.fit((clients[client][0] - main_mean) / main_std, (clients[client][1] - app_mean) / app_std,
                                 validation_split=nilm["training"]["validation_split"], shuffle=True,
@@ -298,12 +323,50 @@ for r in range(1, nilm["run"] + 1):
                                 initial_epoch=0)
                 local_weights_dict.append(
                     {f'layer_{i}': torch.from_numpy(elem) for i, elem in enumerate(local_model.get_weights())})
-                K.clear_session()
+                # K.clear_session()
 
-                if agg == "att":
-                    global_w_tmp = aggregate_att(local_weights_dict, global_w_dict, step_s, metric, dp)
-                else:
-                    global_w_tmp = average_weights(local_weights_dict, dp)
+            if agg == "att":
+                global_w_tmp = aggregate_att(local_weights_dict, global_w_dict, step_s, metric, dp)
+            else:
+                global_w_tmp = average_weights(local_weights_dict, dp)
 
             global_w = [i.numpy() for i in global_w_tmp.values()]
             global_model.set_weights(global_w)
+
+            print(f"Validation started...")
+            y_pred = global_model.predict([(x_val-main_mean)/main_std], verbose=1)
+            y_all_pred = reconstruct(y_pred[:]*app_std+app_mean, width, stride, "median")
+            x_all = reconstruct(x_val[:], width, stride, "median")
+            y_all_true = reconstruct(y_val[:], width, stride, "median")
+            y_all_pred[y_all_pred < 15] = 0
+
+            x_all = x_all.reshape([1, -1])
+            y_all_pred = y_all_pred.reshape([1, -1])
+            y_all_true = y_all_true.reshape([1, -1])
+
+            # for i in range(x_all.shape[-1]):
+            #     x_total.append(x_all[0, i])
+            # for i in range(y_all_pred.shape[-1]):
+            #     y_total_pred.append(y_all_pred[0, i])
+            # for i in range(y_all_true.shape[-1]):
+            #     y_total_true.append(y_all_true[0, i])
+            #
+            # del x_all
+            # del y_all_pred
+            # del y_all_true
+
+            MAE_tot, MAE_app, MAE = MAE_metric(y_all_pred, y_all_true, disaggregation=True, only_power_on=False)
+            acc_P_tot, acc_P_app, acc_P = acc_Power(y_all_pred, y_all_true, disaggregation=True)
+            PR_app = PR_metric(y_all_pred, y_all_true, thr=thr_house_2[nilm["appliance"]])
+            RE_app = RE_metric(y_all_pred, y_all_true, thr=thr_house_2[nilm["appliance"]])
+            F1_app = F1_metric(y_all_pred, y_all_true, thr=thr_house_2[nilm["appliance"]])
+            SAE_app = SAE_metric(y_all_pred, y_all_true)
+
+            print(f"MAE total: {MAE_tot} | MAE app: {MAE_app}")
+            print(f"Accuracy total: {acc_P_tot} | Accuracy app: {acc_P_app}")
+            print(f"Precision: {PR_app[0]}")
+            print(f"Recall: {RE_app[0]}:")
+            print(f"F1: {F1_app[0]}")
+            print(f"SAE: {SAE_app[0]}")
+
+

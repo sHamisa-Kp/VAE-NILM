@@ -157,9 +157,12 @@ def load_data(model, appliance, dataset, width, strides, batch_s, fl_mode=False,
             print(f"Client names: {client_names}")
             client_b = {c: [x, y] for c, x, y in zip(client_names, x_train_temp, y_train_temp)}
             return client_b
+        elif set_type == "test" and fl_mode:
+            test_l = x_tot.shape[0]
+            return [x_tot[:int(0.2 * test_l)], y_tot[:int(0.2 * test_l)], x_tot[int(0.2 * test_l):],
+                    y_tot[int(0.2 * test_l):]]
         else:
             return x_tot, y_tot
-
     ###############################################################################
     # Load dataset
     ###############################################################################
@@ -189,18 +192,26 @@ def load_data(model, appliance, dataset, width, strides, batch_s, fl_mode=False,
                 client_dict = create_dataset(appliance, dataset, width, strides, batch_s, "train")
 
         if (set_type == "test") or (set_type == "both"):
-            print("Create test dataset")
-            x_test, y_test = create_dataset(appliance, dataset, width, strides, batch_s, "test", test_from=test_from)
+            if not fl_mode:
+                print("Create test dataset")
+                x_test, y_test = create_dataset(appliance, dataset, width, strides, batch_s, "test",
+                                                test_from=test_from)
+            else:
+                x_val, y_val, x_test, y_test = create_dataset(appliance, dataset, width, strides, batch_s, "test",
+                                                              test_from=test_from)
+                print(x_val.shape)
+                print(x_test.shape)
 
-        if (set_type == "both"):
+        if set_type == "both":
             return x_train, y_train, x_test, y_test
         elif (set_type == "train") and not fl_mode:
             return x_train, y_train
         elif (set_type == "train") and fl_mode:
             return client_dict
+        elif (set_type == "test") and fl_mode:
+            return x_val, y_val, x_test, y_test
         else:
             return x_test, y_test
-
 
 #         elif a.dataset == "refit":
 #             ###############################################################################
@@ -515,7 +526,7 @@ def create_model(model, config, width, optimizer):
             x_pred = tf.keras.layers.Conv1D(1, 3, padding="same", activation="relu", name="x_pred")(dconc17)
 
             model = tf.keras.Model(inputs=[x, eps], outputs=x_pred)
-            model.summary()
+            # model.summary()
 
         if config == "fixe_filter":
             start_filter_num = 256
@@ -593,7 +604,7 @@ def create_model(model, config, width, optimizer):
             x_pred = tf.keras.layers.Conv1D(1, 3, padding="same", activation="relu", name="x_pred")(dconc17)
 
             model = tf.keras.Model(inputs=[x, eps], outputs=x_pred)
-            model.summary()
+            # model.summary()
 
         elif config == 1:
             start_filter_num = 32
@@ -666,7 +677,7 @@ def create_model(model, config, width, optimizer):
             x_pred = tf.keras.layers.Conv1D(1, 3, padding="same", activation="relu", name="x_pred")(dconv_seq10)
 
             model = tf.keras.Model(inputs=[x, eps], outputs=x_pred)
-            model.summary()
+            # model.summary()
 
         elif config == 2:
             start_filter_num = 32
@@ -754,7 +765,7 @@ def create_model(model, config, width, optimizer):
             x_pred = tf.keras.layers.Conv1D(1, 3, padding="same", activation="relu", name="x_pred")(dconc17)
 
             model = tf.keras.Model(inputs=[x], outputs=[x_pred])
-            model.summary()
+            # model.summary()
 
         elif config == 3:
             start_filter_num = 32
@@ -835,7 +846,7 @@ def create_model(model, config, width, optimizer):
             x_pred = tf.keras.layers.Conv1D(1, 3, padding="same", activation="relu", name="x_pred")(dconv_seq10)
 
             model = tf.keras.Model(inputs=[x, eps], outputs=x_pred)
-            model.summary()
+            # model.summary()
 
         model.compile(optimizer=optimizer, loss=vae_loss, metrics=[KL_loss, Recon_loss, "mean_absolute_error"])
 
