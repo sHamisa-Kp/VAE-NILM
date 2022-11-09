@@ -25,6 +25,8 @@ os.environ['WANDB_API_KEY'] = "b76283bc6c04e2ce6611147c4d328f71af8c71ba"
 
 tf.compat.v1.disable_eager_execution()
 
+wandb.init(project="fed_vae")
+
 # ?
 ADD_VAL_SET = False
 
