@@ -8,6 +8,7 @@ import logging
 import json
 import copy
 import torch
+import wandb
 
 import torch.nn.functional as F
 import tensorflow as tf
@@ -18,6 +19,9 @@ from scipy import linalg
 from dtw import *
 from VAE_functions import *
 from NILM_functions import *
+
+'''wandb config'''
+os.environ['WANDB_API_KEY'] = "b76283bc6c04e2ce6611147c4d328f71af8c71ba"
 
 tf.compat.v1.disable_eager_execution()
 
@@ -57,11 +61,7 @@ step_s = a.step_s
 metric = a.metric
 dp = a.dp
 
-thr_house_2 = { "Fridge": 50,
-                "WashingMachine": 20,
-                "Dishwasher": 100,
-                "Kettle": 100,
-                "Microwave": 200}
+thr_house_2 = dict(Fridge=50, WashingMachine=20, Dishwasher=100, Kettle=100, Microwave=200)
 
 print("###############################################################################")
 print("NILM DISAGGREGATION")
@@ -234,15 +234,15 @@ for r in range(1, nilm["run"] + 1):
     print("Run number : {}/{}".format(r, nilm["run"]))
     print("###############################################################################")
 
-    if not os.path.exists("{}/{}/{}/logs/model/House_{}/{}".format(name, nilm["dataset"]["name"], nilm["model"],
-                                                                   nilm["dataset"]["test"]["house"][0], time)):
-        os.makedirs("{}/{}/{}/logs/model/House_{}/{}".format(name, nilm["dataset"]["name"], nilm["model"],
-                                                             nilm["dataset"]["test"]["house"][0], time))
-
-    with open("{}/{}/{}/logs/model/House_{}/{}/config.txt".format(name, nilm["dataset"]["name"], nilm["model"],
-                                                                  nilm["dataset"]["test"]["house"][0], time),
-              "w") as outfile:
-        json.dump(nilm, outfile)
+    # if not os.path.exists("{}/{}/{}/logs/model/House_{}/{}".format(name, nilm["dataset"]["name"], nilm["model"],
+    #                                                                nilm["dataset"]["test"]["house"][0], time)):
+    #     os.makedirs("{}/{}/{}/logs/model/House_{}/{}".format(name, nilm["dataset"]["name"], nilm["model"],
+    #                                                          nilm["dataset"]["test"]["house"][0], time))
+    #
+    # with open("{}/{}/{}/logs/model/House_{}/{}/config.txt".format(name, nilm["dataset"]["name"], nilm["model"],
+    #                                                               nilm["dataset"]["test"]["house"][0], time),
+    #           "w") as outfile:
+    #     json.dump(nilm, outfile)
 
     ###############################################################################
     # Train Model
@@ -284,10 +284,10 @@ for r in range(1, nilm["run"] + 1):
             ###############################################################################
             # Save history
             ###############################################################################
-            np.save(
-                "{}/{}/{}/logs/model/House_{}/{}/{}/history.npy".format(name, nilm["dataset"]["name"], nilm["model"],
-                                                                        nilm["dataset"]["test"]["house"][0], time, r),
-                history.history)
+            # np.save(
+            #     "{}/{}/{}/logs/model/House_{}/{}/{}/history.npy".format(name, nilm["dataset"]["name"], nilm["model"],
+            #                                                             nilm["dataset"]["test"]["house"][0], time, r),
+            #     history.history)
             # np.save("{}/{}/{}/logs/model/{}/{}/history_cb_{}.npy".format(name, nilm["dataset"]["name"],
             # nilm["model"], time, r, epochs), history_cb.history)
 
@@ -361,6 +361,7 @@ for r in range(1, nilm["run"] + 1):
             RE_app = RE_metric(y_all_pred, y_all_true, thr=thr_house_2[nilm["appliance"]])
             F1_app = F1_metric(y_all_pred, y_all_true, thr=thr_house_2[nilm["appliance"]])
             SAE_app = SAE_metric(y_all_pred, y_all_true)
+            RETE = relative_error_total_energy(y_all_pred, y_all_true)
 
             print(f"MAE total: {MAE_tot} | MAE app: {MAE_app}")
             print(f"Accuracy total: {acc_P_tot} | Accuracy app: {acc_P_app}")
@@ -368,5 +369,10 @@ for r in range(1, nilm["run"] + 1):
             print(f"Recall: {RE_app[0]}:")
             print(f"F1: {F1_app[0]}")
             print(f"SAE: {SAE_app[0]}")
+            print(f"RETE: {RETE}")
+
+            new_row = {' MAE': MAE_app, 'Accuracy': acc_P_app, 'Precision': PR_app[0], 'Recall': RE_app[0],
+                       'F1': F1_app[0], 'SAE': SAE_app[0], 'RETE': RETE}
+            wandb.log(new_row)
 
 
