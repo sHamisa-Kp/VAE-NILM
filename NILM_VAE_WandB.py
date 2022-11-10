@@ -10,6 +10,7 @@ import copy
 import torch
 import wandb
 
+import pandas as pd
 import torch.nn.functional as F
 import tensorflow as tf
 import tensorflow.keras.backend as K
@@ -25,7 +26,7 @@ os.environ['WANDB_API_KEY'] = "b76283bc6c04e2ce6611147c4d328f71af8c71ba"
 
 tf.compat.v1.disable_eager_execution()
 
-wandb.init(project="fed_vae")
+
 
 # ?
 ADD_VAL_SET = False
@@ -36,7 +37,6 @@ logging.getLogger('tensorflow').disabled = True
 # Config
 ###############################################################################
 parser = argparse.ArgumentParser()
-parser.add_argument("--gpu", default=0, type=int, help="Appliance to learn")
 parser.add_argument("--config", default="", type=str, help="Path to the config file")
 parser.add_argument('--fl', default=False, action='store_true')
 parser.add_argument('--agg', default='att', type=str)
@@ -48,8 +48,8 @@ parser.add_argument('--dp', default=0.001, type=float)
 a = parser.parse_args()
 
 # Select GPU
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = str(a.gpu)
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"] = str(a.gpu)
 
 # Random seed
 np.random.seed(123)
@@ -67,7 +67,6 @@ thr_house_2 = dict(Fridge=50, WashingMachine=20, Dishwasher=100, Kettle=100, Mic
 
 print("###############################################################################")
 print("NILM DISAGGREGATION")
-print("GPU: {}".format(a.gpu))
 print("Config: {}".format(a.config))
 print("FL mode: {}".format(a.fl))
 if fl_mode:
@@ -76,6 +75,11 @@ print("#########################################################################
 
 with open(a.config) as data_file:
     nilm = json.load(data_file)
+
+# Save global model path
+save_path = "Results/" + nilm["appliance"] + "/" + agg + "/"
+
+wandb.init(project="fed_vae", name=nilm["appliance"] + "_" + str(nilm["preprocessing"]["width"]) + "_" + agg + "_dp" + str(dp))
 
 name = "NILM_Disag_{}".format(nilm["appliance"])
 time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -303,6 +307,8 @@ for r in range(1, nilm["run"] + 1):
         # initialize global model
         global_model = create_model(nilm["model"], nilm["config"], nilm["preprocessing"]["width"],
                                     optimizer=tf.keras.optimizers.RMSprop(0.001))
+        FL_parameters = pd.DataFrame(columns=['Epoch', 'MAE', 'Accuracy', 'Precision', 'Recall', 'F1', 'SAE', 'RETE'])
+
         for epoch in range(global_epochs):
             # x_total = []
             # y_total_pred = []
@@ -334,10 +340,13 @@ for r in range(1, nilm["run"] + 1):
 
             global_w = [i.numpy() for i in global_w_tmp.values()]
             global_model.set_weights(global_w)
+            global_model.save("{}CHECKPOINT-{}-{}-{}.hdf5".format(save_path, nilm["appliance"],
+                                                                  nilm["preprocessing"]["width"],
+                                                                  agg, dp), global_model)
 
             print(f"Validation started...")
-            y_pred = global_model.predict([(x_val-main_mean)/main_std], verbose=1)
-            y_all_pred = reconstruct(y_pred[:]*app_std+app_mean, width, stride, "median")
+            y_pred = global_model.predict([(x_val - main_mean) / main_std], verbose=1)
+            y_all_pred = reconstruct(y_pred[:] * app_std + app_mean, width, stride, "median")
             x_all = reconstruct(x_val[:], width, stride, "median")
             y_all_true = reconstruct(y_val[:], width, stride, "median")
             y_all_pred[y_all_pred < 15] = 0
@@ -373,8 +382,13 @@ for r in range(1, nilm["run"] + 1):
             print(f"SAE: {SAE_app[0]}")
             print(f"RETE: {RETE}")
 
-            new_row = {' MAE': MAE_app, 'Accuracy': acc_P_app, 'Precision': PR_app[0], 'Recall': RE_app[0],
+            new_row = {'Epoch': epoch, 'MAE': MAE_app, 'Accuracy': acc_P_app, 'Precision': PR_app[0], 'Recall': RE_app[0],
                        'F1': F1_app[0], 'SAE': SAE_app[0], 'RETE': RETE}
+            FL_parameters = FL_parameters.append(new_row, ignore_index=True)
             wandb.log(new_row)
+
+        FL_parameters.to_csv('{}FL-parameters-{}-{}-{}-{}.csv'.format(save_path, nilm["appliance"], nilm["preprocessing"]["width"],
+                                                                      agg, dp), index=False)
+
 
 

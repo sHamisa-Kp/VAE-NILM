@@ -139,7 +139,6 @@ def load_data(model, appliance, dataset, width, strides, batch_s, fl_mode=False,
                 x_r, y_r = select_ratio(x_, y_, r, set_type, test_from=test_from)
             else:
                 x_r, y_r = select_ratio(x_, y_, r, set_type)  # Select the proportion needed
-                # print("shape of x_r: {}, shape of y_r: {}".format(x_r.shape, y_r.shape))
                 x_train_temp.append(x_r)
                 y_train_temp.append(y_r)
 
