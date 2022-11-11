@@ -388,7 +388,7 @@ for r in range(1, nilm["run"] + 1):
             print(f"SAE: {SAE_app[0]}")
             print(f"RETE: {RETE}")
 
-            new_row = {'Epoch': epoch, 'MAE': MAE_app, 'Accuracy': acc_P_app, 'Precision': PR_app[0], 'Recall': RE_app[0],
+            new_row = {'Epoch': epoch, 'MAE': MAE_tot, 'Accuracy': acc_P_tot, 'Precision': PR_app[0], 'Recall': RE_app[0],
                        'F1': F1_app[0], 'SAE': SAE_app[0], 'RETE': RETE}
             FL_parameters = FL_parameters.append(new_row, ignore_index=True)
             wandb.log(new_row)
