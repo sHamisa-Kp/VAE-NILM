@@ -1,0 +1,10 @@
+# wandb sweep --project vae_myown --name sweep_my_vae myvae.yaml
+program: NILM_VAE_WandB.py
+method: grid
+parameters:
+  config:
+    values: [Config/My_own_parameters/Fridge_VAE.json, Config/My_own_parameters/Dishwasher_VAE.json, Config/My_own_parameters/Kettle_VAE.json, Config/My_own_parameters/Microwave_VAE.json, Config/My_own_parameters/WashingMachine_VAE.json]
+  agg:
+    values: [avg, att]
+  dp:
+    values: [0, 0.001, 0.005, 0.01, 0.05]
