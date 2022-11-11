@@ -73,7 +73,7 @@ if fl_mode:
     print("Aggregation mode: {}".format(a.agg))
     print("Dp: {}".format(dp))
     print("Step size: {}".format(step_s))
-    print("Metric: ".format(metric))
+    print("Metric: {}".format(metric))
     print("Global epochs: {}".format(global_epochs))
     print("Local epochs: {}".format(local_epochs))
 print("###############################################################################")
