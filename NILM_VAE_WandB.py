@@ -41,10 +41,10 @@ parser.add_argument("--config", default="", type=str, help="Path to the config f
 parser.add_argument('--fl', default=False, action='store_true')
 parser.add_argument('--agg', default='att', type=str)
 parser.add_argument('--global_epoch', default=50, type=int)
-parser.add_argument('--local_epoch', default=1, type=int)
-parser.add_argument('--step_s', default=1.2, type=float)
-parser.add_argument('--metric', default=2, type=int)
-parser.add_argument('--dp', default=0.001, type=float)
+parser.add_argument('--local_epoch', default=2, type=int)
+parser.add_argument('--step_s', default=0.5, type=float)
+parser.add_argument('--metric', default=-1, type=int)
+parser.add_argument('--dp', default=0, type=float)
 a = parser.parse_args()
 
 # Select GPU
