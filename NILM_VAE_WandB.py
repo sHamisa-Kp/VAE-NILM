@@ -74,6 +74,8 @@ if fl_mode:
     print("Dp: {}".format(dp))
     print("Step size: {}".format(step_s))
     print("Metric: ".format(metric))
+    print("Global epochs: {}".format(global_epochs))
+    print("Local epochs: {}".format(local_epochs))
 print("###############################################################################")
 
 with open(a.config) as data_file:
