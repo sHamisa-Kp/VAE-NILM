@@ -82,7 +82,7 @@ with open(a.config) as data_file:
 # Save global model path
 save_path = "Results/" + nilm["appliance"] + "/" + agg + "/"
 
-wandb.init(project="fed_vae", name=nilm["appliance"] + "_" + str(nilm["preprocessing"]["width"]) + "_" + agg + "_dp" + str(dp))
+wandb.init(name=nilm["appliance"] + "_" + str(nilm["preprocessing"]["width"]) + "_" + agg + "_dp" + str(dp))
 
 name = "NILM_Disag_{}".format(nilm["appliance"])
 time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
