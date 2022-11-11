@@ -38,7 +38,7 @@ logging.getLogger('tensorflow').disabled = True
 ###############################################################################
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", default="", type=str, help="Path to the config file")
-parser.add_argument('--fl', default=False, action='store_true')
+parser.add_argument('--fl', default=True, action='store_true')
 parser.add_argument('--agg', default='att', type=str)
 parser.add_argument('--global_epoch', default=50, type=int)
 parser.add_argument('--local_epoch', default=2, type=int)
@@ -71,6 +71,9 @@ print("Config: {}".format(a.config))
 print("FL mode: {}".format(a.fl))
 if fl_mode:
     print("Aggregation mode: {}".format(a.agg))
+    print("Dp: {}".format(dp))
+    print("Step size: {}".format(step_s))
+    print("Metric: ".format(metric))
 print("###############################################################################")
 
 with open(a.config) as data_file:
