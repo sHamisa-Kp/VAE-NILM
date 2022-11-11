@@ -314,6 +314,7 @@ for r in range(1, nilm["run"] + 1):
         global_model = create_model(nilm["model"], nilm["config"], nilm["preprocessing"]["width"],
                                     optimizer=tf.keras.optimizers.RMSprop(0.001))
         FL_parameters = pd.DataFrame(columns=['Epoch', 'MAE', 'Accuracy', 'Precision', 'Recall', 'F1', 'SAE', 'RETE'])
+        temp_mae = 2000
 
         for epoch in range(global_epochs):
             # x_total = []
@@ -346,9 +347,6 @@ for r in range(1, nilm["run"] + 1):
 
             global_w = [i.numpy() for i in global_w_tmp.values()]
             global_model.set_weights(global_w)
-            global_model.save("{}CHECKPOINT-{}-{}-{}.hdf5".format(save_path, nilm["appliance"],
-                                                                  nilm["preprocessing"]["width"],
-                                                                  agg, dp), global_model)
 
             print(f"Validation started...")
             y_pred = global_model.predict([(x_val - main_mean) / main_std], verbose=1)
@@ -380,6 +378,11 @@ for r in range(1, nilm["run"] + 1):
             SAE_app = SAE_metric(y_all_pred, y_all_true)
             RETE = relative_error_total_energy(y_all_pred, y_all_true)
 
+            if MAE_tot < temp_mae:
+                temp_mae = MAE_tot
+                global_model.save("{}{}-{}-CHECKPOINT-{}-{}-{}.hdf5".format(save_path, nilm["appliance"],
+                                                                            epoch, nilm["preprocessing"]["width"],
+                                                                            agg, dp), global_model)
             print(f"MAE total: {MAE_tot} | MAE app: {MAE_app}")
             print(f"Accuracy total: {acc_P_tot} | Accuracy app: {acc_P_app}")
             print(f"Precision: {PR_app[0]}")
