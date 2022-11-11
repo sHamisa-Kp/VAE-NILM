@@ -26,8 +26,6 @@ os.environ['WANDB_API_KEY'] = "b76283bc6c04e2ce6611147c4d328f71af8c71ba"
 
 tf.compat.v1.disable_eager_execution()
 
-
-
 # ?
 ADD_VAL_SET = False
 
@@ -391,13 +389,12 @@ for r in range(1, nilm["run"] + 1):
             print(f"SAE: {SAE_app[0]}")
             print(f"RETE: {RETE}")
 
-            new_row = {'Epoch': epoch, 'MAE': MAE_tot, 'Accuracy': acc_P_tot, 'Precision': PR_app[0], 'Recall': RE_app[0],
+            new_row = {'Epoch': epoch, 'MAE': MAE_tot, 'Accuracy': acc_P_tot, 'Precision': PR_app[0],
+                       'Recall': RE_app[0],
                        'F1': F1_app[0], 'SAE': SAE_app[0], 'RETE': RETE}
             FL_parameters = FL_parameters.append(new_row, ignore_index=True)
             wandb.log(new_row)
 
-        FL_parameters.to_csv('{}FL-parameters-{}-{}-{}-{}.csv'.format(save_path, nilm["appliance"], nilm["preprocessing"]["width"],
+        FL_parameters.to_csv('{}FL-parameters-{}-{}-{}-{}.csv'.format(save_path, nilm["appliance"],
+                                                                      nilm["preprocessing"]["width"],
                                                                       agg, dp), index=False)
-
-
-
