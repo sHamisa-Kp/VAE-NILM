@@ -3,7 +3,7 @@ program: NILM_VAE_WandB.py
 method: grid
 parameters:
   config:
-    values: [Config/My_own_parameters/Fridge_VAE.json, Config/My_own_parameters/Dishwasher_VAE.json, Config/My_own_parameters/Kettle_VAE.json, Config/My_own_parameters/Microwave_VAE.json, Config/My_own_parameters/WashingMachine_VAE.json]
+    values: [Config/My_own_parameters/Fridge_VAE.json, Config/My_own_parameters/Dishwasher_VAE.json, Config/My_own_parameters/Microwave_VAE.json, Config/My_own_parameters/WashingMachine_VAE.json]
   agg:
     values: [avg, att]
   dp:
