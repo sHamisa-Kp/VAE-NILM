@@ -531,10 +531,17 @@ def create_model(model, config, width, optimizer):
             start_filter_num = 256
             kernel_size = 3
             latent_dim = 16
-
+            temp_width = 1024
+            # x = tf.keras.Input(shape=(width, 1))
             x = tf.keras.Input(shape=(width, 1))
 
-            conv_seq1 = conv_block_seq_res_fixe(x, start_filter_num, kernel_size, 1, "conv_seq1", ResCon=False)
+            y = tf.keras.layers.Reshape((width, 1, 1))(x)
+            y = tf.keras.layers.UpSampling2D(size=(temp_width / width, 1), interpolation='bilinear')(y)
+
+            y = tf.keras.layers.Reshape((y.shape[1], 1))(y)
+            y = tf.keras.layers.ZeroPadding1D(padding=((temp_width % width)//2))(y)
+
+            conv_seq1 = conv_block_seq_res_fixe(y, start_filter_num, kernel_size, 1, "conv_seq1", ResCon=False)
             pool1 = tf.keras.layers.MaxPooling1D(name="pool1")(conv_seq1)
 
             conv_seq2 = conv_block_seq_res_fixe(pool1, start_filter_num, kernel_size, 1, "conv_seq2")
@@ -568,7 +575,7 @@ def create_model(model, config, width, optimizer):
             z = tf.keras.layers.Add(name="z")([z_mu, z_eps])
 
             # latent_conv = tf.keras.layers.Dense(width//64, name="latent_conv")(z)
-            reshape1 = tf.keras.layers.Reshape([width // 64, 1], name="reshape1")(z)
+            reshape1 = tf.keras.layers.Reshape([temp_width // 64, 1], name="reshape1")(z)
 
             ###############################################################################
             # New for conditional VAE
@@ -601,8 +608,10 @@ def create_model(model, config, width, optimizer):
             dconc17 = tf.keras.layers.concatenate([dconv_seq10, conv_seq1], name="dconc17")
 
             x_pred = tf.keras.layers.Conv1D(1, 3, padding="same", activation="relu", name="x_pred")(dconc17)
+            x_pred = tf.keras.layers.AveragePooling1D(pool_size=temp_width-2*width+1, strides=2)(x_pred)
 
             model = tf.keras.Model(inputs=[x, eps], outputs=x_pred)
+
             # model.summary()
 
         elif config == 1:
