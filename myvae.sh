@@ -24,5 +24,5 @@ curl https://ipinfo.io/ip
 
 wandb online
 wandb login b76283bc6c04e2ce6611147c4d328f71af8c71ba
-wandb agent shamisa-kp/vae_myown/wvc4yzmz
+wandb agent shamisa-kp/vae_myown/9u1c8o2j
 
