@@ -21,8 +21,8 @@ from dtw import *
 from VAE_functions import *
 from NILM_functions import *
 
-'''wandb config'''
-os.environ['WANDB_API_KEY'] = "b76283bc6c04e2ce6611147c4d328f71af8c71ba"
+# '''wandb config'''
+# os.environ['WANDB_API_KEY'] = "b76283bc6c04e2ce6611147c4d328f71af8c71ba"
 
 tf.compat.v1.disable_eager_execution()
 
@@ -82,7 +82,7 @@ with open(a.config) as data_file:
 # Save global model path
 save_path = "Results/" + nilm["appliance"] + "/" + agg + "/"
 
-wandb.init(name=nilm["appliance"] + "_" + str(nilm["preprocessing"]["width"]) + "_" + agg + "_dp" + str(dp))
+# wandb.init(name=nilm["appliance"] + "_" + str(nilm["preprocessing"]["width"]) + "_" + agg + "_dp" + str(dp))
 
 name = "NILM_Disag_{}".format(nilm["appliance"])
 time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -393,7 +393,7 @@ for r in range(1, nilm["run"] + 1):
                        'Recall': RE_app[0],
                        'F1': F1_app[0], 'SAE': SAE_app[0], 'RETE': RETE}
             FL_parameters = FL_parameters.append(new_row, ignore_index=True)
-            wandb.log(new_row)
+            # wandb.log(new_row)
 
         FL_parameters.to_csv('{}FL-parameters-{}-{}-{}-{}.csv'.format(save_path, nilm["appliance"],
                                                                       nilm["preprocessing"]["width"],
